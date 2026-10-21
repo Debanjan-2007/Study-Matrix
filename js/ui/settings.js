@@ -244,22 +244,58 @@ function onImportFile(e) {
       toast('Import rejected: ' + result.error, { timeoutMs: 6000 });
       return;
     }
-    const stats = `${result.state.sessions.length} sessions, ${result.state.subjects.length} subjects, ${result.state.topics.length} topics`;
-    const p = el('p', 'modal-sub');
-    p.textContent = `Replace everything in this browser with the backup (${stats})? Current data will be lost unless you export it first.`;
+    const inc = result.state;
+    const inCounts = `${inc.subjects.length} subject${inc.subjects.length === 1 ? '' : 's'}, ${inc.topics.length} topic${inc.topics.length === 1 ? '' : 's'}, ${inc.sessions.length} session${inc.sessions.length === 1 ? '' : 's'}`;
+    const cur = store.state;
+    const curCounts = `${cur.subjects.length} subject${cur.subjects.length === 1 ? '' : 's'}, ${cur.topics.length} topic${cur.topics.length === 1 ? '' : 's'}, ${cur.sessions.length} session${cur.sessions.length === 1 ? '' : 's'}`;
+    const empty = inc.subjects.length === 0 && inc.topics.length === 0 && inc.sessions.length === 0;
+
+    const body = el('div');
+    const p1 = el('p', 'modal-sub', `This backup file (${file.name}) contains ${inCounts}.`);
+    const p2 = el('p', 'modal-sub', `Currently in this browser: ${curCounts}.`);
+    body.append(p1, p2);
+    if (empty) {
+      const warn = el('p', 'modal-sub');
+      warn.style.color = 'var(--amber)';
+      warn.textContent = 'Warning: this backup contains no study data. "Replace everything" will erase all current records and leave you with an empty app.';
+      body.appendChild(warn);
+    }
+
     openModal({
       title: 'Import backup?',
-      body: p,
+      body,
       actions: [
         { label: 'Cancel', kind: 'primary' },
-        { label: 'Import & replace', kind: 'danger', onClick: () => {
-          store.replace(result.state);
-          toast('Backup imported.', { timeoutMs: 3000 });
+        { label: 'Merge into current data', onClick: () => {
+          const merged = mergeInto(store.state, inc);
+          store.replace(merged);
+          toast(`Merged backup: now ${store.state.subjects.length} subjects, ${store.state.topics.length} topics, ${store.state.sessions.length} sessions.`, { timeoutMs: 5000 });
+        } },
+        { label: empty ? 'Replace with empty backup' : 'Replace everything', kind: 'danger', onClick: () => {
+          store.replace(inc);
+          toast(`Backup imported: ${store.state.subjects.length} subjects, ${store.state.topics.length} topics, ${store.state.sessions.length} sessions.`, { timeoutMs: 5000 });
         } },
       ],
     });
   };
   reader.readAsText(file);
+}
+
+function mergeInto(local, incoming) {
+  const next = JSON.parse(JSON.stringify(local));
+  const mergeById = (a, b) => {
+    const m = new Map(a.map(x => [x.id, x]));
+    for (const x of b) m.set(x.id, x);
+    return [...m.values()];
+  };
+  next.subjects = mergeById(local.subjects, incoming.subjects);
+  next.topics = mergeById(local.topics, incoming.topics);
+  next.sessions = mergeById(local.sessions, incoming.sessions);
+  const key = p => p.topicId + '|' + p.date;
+  const planMap = new Map(local.plan.map(p => [key(p), p]));
+  for (const p of incoming.plan) planMap.set(key(p), p);
+  next.plan = [...planMap.values()];
+  return next;
 }
 
 function confirmWipe() {
