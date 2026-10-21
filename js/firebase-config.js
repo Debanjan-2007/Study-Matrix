@@ -4,10 +4,12 @@
 // protected by Firestore security rules, which is why the rules step matters.
 
 export const firebaseConfig = {
-  apiKey: "PASTE_YOURS",
-  authDomain: "PASTE_YOURS",
-  projectId: "PASTE_YOURS",
-  appId: "PASTE_YOURS",
+  apiKey: "AIzaSyDqVSq-JNhysAYc9asIP1uR1UzW_oHCIAE",
+  authDomain: "study-matrix-97d04.firebaseapp.com",
+  projectId: "study-matrix-97d04",
+  storageBucket: "study-matrix-97d04.firebasestorage.app",
+  messagingSenderId: "6248398774",
+  appId: "1:6248398774:web:76936ceee0db57b3900b17",
 };
 
 export const syncConfigured =
