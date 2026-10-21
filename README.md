@@ -49,14 +49,6 @@ Study Matrix follows this cycle automatically: focus → short rest → focus �
 - Dark glassmorphism UI with light mode and system theme detection.
 - Fully responsive — works on desktop and mobile phones.
 
-## Tests
-
-Timer logic, date handling, week bounds, streaks, and stats are covered by a dependency-free node test suite:
-
-```bash
-node tests/run-tests.mjs
-```
-
 ## Tech
 
 - Vanilla HTML / CSS / JavaScript (ES modules) — zero runtime dependencies
