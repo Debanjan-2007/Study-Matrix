@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#070b14">
+  <meta name="color-scheme" content="dark light">
+  <title>Study Matrix — Plan · Focus · Achieve</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230b1220'/%3E%3Ccircle cx='11' cy='11' r='4' fill='%2322d3ee'/%3E%3Ccircle cx='21' cy='11' r='4' fill='none' stroke='%23818cf8' stroke-width='2'/%3E%3Ccircle cx='11' cy='21' r='4' fill='none' stroke='%23c084fc' stroke-width='2'/%3E%3Crect x='18.5' y='18.5' width='5' height='5' rx='1.5' fill='%2334d399' transform='rotate(45 21 21)'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="bg-scene" aria-hidden="true">
+    <div class="orb orb-a"></div>
+    <div class="orb orb-b"></div>
+    <div class="orb orb-c"></div>
+    <div class="bg-grid"></div>
+  </div>
+
+  <header class="topbar">
+    <button class="brand" data-goto="planner" aria-label="Study Matrix home">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 32 32" width="30" height="30">
+          <circle cx="11" cy="11" r="4" fill="#22d3ee"/>
+          <circle cx="21" cy="11" r="4" fill="none" stroke="#818cf8" stroke-width="2"/>
+          <circle cx="11" cy="21" r="4" fill="none" stroke="#c084fc" stroke-width="2"/>
+          <rect x="18.6" y="18.6" width="4.8" height="4.8" rx="1.4" fill="#34d399" transform="rotate(45 21 21)"/>
+        </svg>
+      </span>
+      <span class="brand-text">Study<em>Matrix</em></span>
+    </button>
+
+    <nav class="mainnav" aria-label="Main">
+      <button class="nav-pill is-active" data-goto="planner">
+        <svg viewBox="0 0 24 24" class="ic"><path d="M4 5h16M4 12h16M4 19h10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <span>Planner</span>
+      </button>
+      <button class="nav-pill" data-goto="focus">
+        <svg viewBox="0 0 24 24" class="ic"><circle cx="12" cy="13" r="8" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 9v4l2.5 2.5M9 2h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <span>Focus</span>
+      </button>
+      <button class="nav-pill" data-goto="progress">
+        <svg viewBox="0 0 24 24" class="ic"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <span>Progress</span>
+      </button>
+      <button class="nav-pill" data-goto="settings">
+        <svg viewBox="0 0 24 24" class="ic"><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M19 12a7 7 0 0 0-.14-1.4l2-1.55-2-3.46-2.35.95a7 7 0 0 0-2.42-1.4L13.7 2.6h-3.4l-.39 2.54a7 7 0 0 0-2.42 1.4l-2.35-.95-2 3.46 2 1.55A7 7 0 0 0 5 12c0 .48.05.94.14 1.4l-2 1.55 2 3.46 2.35-.95a7 7 0 0 0 2.42 1.4l.39 2.54h3.4l.39-2.54a7 7 0 0 0 2.42-1.4l2.35.95 2-3.46-2-1.55c.09-.46.14-.92.14-1.4Z" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
+        <span>Settings</span>
+      </button>
+    </nav>
+
+    <div class="top-actions">
+      <button class="timer-chip" id="timer-chip" hidden data-goto="focus" aria-label="Timer running — go to Focus">
+        <span class="chip-dot" aria-hidden="true"></span>
+        <span id="timer-chip-text">25:00</span>
+      </button>
+      <div class="streak-chip" id="nav-streak" title="Current study streak">
+        <svg viewBox="0 0 24 24" class="ic flame" aria-hidden="true"><path d="M12 22c4.4 0 7-2.8 7-6.5 0-2.4-1.2-4.2-2.4-5.7-.5 1-1.1 1.7-2 2.2.3-2.6-.9-6.1-4.1-8 .2 2.3-.6 3.9-1.9 5.4C7.3 10.9 5 13 5 16 5 19.9 7.6 22 12 22Z" fill="currentColor"/><path d="M12 22c-2 0-3.4-1.3-3.4-3.2 0-1.4.8-2.4 1.7-3.3.5.7 1 1.1 1.7 1.4.2-1.4-.3-2.9-1.5-4.1 2.5.6 4.9 2.9 4.9 6 0 1.9-1.4 3.2-3.4 3.2Z" fill="rgba(0,0,0,.28)"/></svg>
+        <span id="nav-streak-num">0</span>
+      </div>
+      <button class="icon-btn" id="theme-toggle" aria-label="Toggle theme">
+        <svg viewBox="0 0 24 24" class="ic ic-moon"><path d="M20.4 14.2A8.5 8.5 0 0 1 9.8 3.6 8.5 8.5 0 1 0 20.4 14.2Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+        <svg viewBox="0 0 24 24" class="ic ic-sun"><circle cx="12" cy="12" r="4.4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2.5v2.4M12 19.1v2.4M2.5 12h2.4M19.1 12h2.4M5 5l1.7 1.7M17.3 17.3 19 19M19 5l-1.7 1.7M6.7 17.3 5 19" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <main id="main">
+    <!-- ============ PLANNER ============ -->
+    <section class="view is-active" id="view-planner" aria-labelledby="planner-title">
+      <div class="view-head">
+        <div>
+          <h1 class="view-title" id="planner-title">Weekly <span class="grad-text">Matrix</span></h1>
+          <p class="view-sub" id="planner-sub">Plan blocks per topic, then watch them fill as you focus.</p>
+        </div>
+        <div class="week-switch card">
+          <button class="icon-btn" id="week-prev" aria-label="Previous week"><svg viewBox="0 0 24 24" class="ic"><path d="M14.5 5.5 8 12l6.5 6.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <div class="week-label">
+            <strong id="week-label">This week</strong>
+            <span id="week-range">—</span>
+          </div>
+          <button class="icon-btn" id="week-next" aria-label="Next week"><svg viewBox="0 0 24 24" class="ic"><path d="M9.5 5.5 16 12l-6.5 6.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <button class="btn btn-ghost btn-sm" id="week-today">Today</button>
+          <button class="btn btn-primary btn-sm" id="add-subject">
+            <svg viewBox="0 0 24 24" class="ic"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
+            Subject
+          </button>
+        </div>
+      </div>
+      <div id="planner-root"></div>
+    </section>
+
+    <!-- ============ FOCUS ============ -->
+    <section class="view" id="view-focus" aria-labelledby="focus-title">
+      <div class="focus-layout">
+        <div class="focus-stage card" id="focus-stage">
+          <div class="focus-toprow">
+            <h1 class="view-title sr-only" id="focus-title">Focus</h1>
+            <div class="phase-pill" id="phase-pill"><span class="phase-dot" aria-hidden="true"></span><span id="phase-label">Focus</span></div>
+            <div class="cycle-dots" id="cycle-dots" aria-label="Cycle progress"></div>
+          </div>
+
+          <div class="ring-wrap">
+            <svg class="ring" viewBox="0 0 320 320" aria-hidden="true">
+              <defs>
+                <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#22d3ee"/>
+                  <stop offset="55%" stop-color="#818cf8"/>
+                  <stop offset="100%" stop-color="#c084fc"/>
+                </linearGradient>
+                <linearGradient id="ringGradRest" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#34d399"/>
+                  <stop offset="100%" stop-color="#22d3ee"/>
+                </linearGradient>
+              </defs>
+              <circle class="ring-track" cx="160" cy="160" r="140"/>
+              <circle class="ring-value" id="ring-value" cx="160" cy="160" r="140"/>
+            </svg>
+            <div class="ring-center">
+              <div class="ring-time" id="ring-time">25:00</div>
+              <div class="ring-status" id="ring-status">Ready when you are</div>
+            </div>
+          </div>
+
+          <div class="focus-controls">
+            <button class="btn btn-ghost" id="btn-reset">
+              <svg viewBox="0 0 24 24" class="ic"><path d="M4 10a8 8 0 1 1 1.7 6.2M4 10V4m0 6h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Reset
+            </button>
+            <button class="btn btn-primary btn-xl" id="btn-main">
+              <svg viewBox="0 0 24 24" class="ic ic-play"><path d="M7 4.8v14.4L19 12Z" fill="currentColor"/></svg>
+              <svg viewBox="0 0 24 24" class="ic ic-pause"><path d="M7 4h3.6v16H7zM13.4 4H17v16h-3.6z" fill="currentColor"/></svg>
+              <span id="btn-main-text">Start</span>
+            </button>
+            <button class="btn btn-ghost" id="btn-skip-rest" hidden>
+              Skip rest
+              <svg viewBox="0 0 24 24" class="ic"><path d="M5 5l9 7-9 7V5ZM16 5h3v14h-3z" fill="currentColor"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <aside class="focus-side">
+          <div class="card side-card">
+            <label class="field-label" for="topic-select">Studying now</label>
+            <select id="topic-select" class="select"></select>
+            <div class="side-topic-meta" id="topic-meta">Pick a topic to tie this session to it.</div>
+          </div>
+          <div class="card side-card">
+            <div class="side-stats" id="focus-side-stats"></div>
+          </div>
+          <div class="card side-card hint-card">
+            <div class="hint-title">Shortcuts</div>
+            <ul class="hints">
+              <li><kbd>Space</kbd> start / pause</li>
+            </ul>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- ============ PROGRESS ============ -->
+    <section class="view" id="view-progress" aria-labelledby="progress-title">
+      <div class="view-head">
+        <div>
+          <h1 class="view-title" id="progress-title">Your <span class="grad-text">Progress</span></h1>
+          <p class="view-sub">An honest record of time spent — no manual entry.</p>
+        </div>
+      </div>
+      <div id="progress-root"></div>
+    </section>
+
+    <!-- ============ SETTINGS ============ -->
+    <section class="view" id="view-settings" aria-labelledby="settings-title">
+      <div class="view-head">
+        <div>
+          <h1 class="view-title" id="settings-title">Settings</h1>
+          <p class="view-sub">Everything is stored locally in this browser only.</p>
+        </div>
+      </div>
+      <div id="settings-root"></div>
+    </section>
+  </main>
+
+  <div id="toast-root" aria-live="polite"></div>
+  <div id="modal-root"></div>
+  <input type="file" id="import-file" accept="application/json,.json" hidden>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
