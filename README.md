@@ -49,42 +49,6 @@ Study Matrix follows this cycle automatically: focus → short rest → focus �
 - Dark glassmorphism UI with light mode and system theme detection.
 - Fully responsive — works on desktop and mobile phones.
 
-## Sync setup (one-time, ~10 minutes)
-
-The sync feature uses Google's free [Firebase](https://firebase.google.com) (authentication + database). The app works fully without it — this is only needed if you want phone ↔ laptop sync.
-
-1. Go to [console.firebase.google.com](https://console.firebase.google.com) and sign in with the Google account you'll use in the app.
-2. Click **Add project** → give it a name (e.g. `study-matrix`) → continue (you can disable Analytics).
-3. In the project, open **Build → Authentication → Sign-in method**, enable **Google**, and pick a support email.
-4. Open **Build → Firestore Database → Create database** → choose **Production mode** and a location near you.
-5. In **Firestore → Rules**, publish these rules (each user can only read/write their own data), then **Publish**:
-   ```
-   rules_version = '2';
-   service cloud.firestore {
-     match /databases/{database}/documents {
-       match /users/{uid} {
-         allow read, write: if request.auth != null && request.auth.uid == uid;
-       }
-     }
-   }
-   ```
-6. Go to **Project settings → Your apps → Web app** (`</>` icon), register the app (nickname e.g. `study-matrix-web`), and copy the config values it shows.
-7. Paste the four values into `js/firebase-config.js` (`apiKey`, `authDomain`, `projectId`, `appId`).
-8. **If you host on GitHub Pages:** in **Authentication → Settings → Authorized domains**, add your Pages domain (e.g. `debanjan-2007.github.io`).
-
-The Firebase keys in `js/firebase-config.js` identify your project but are **not secrets** — access to data is protected by the Firestore rules above.
-
-## Run it locally
-
-Because the app uses ES modules, it needs to be served over HTTP (opening `index.html` directly with `file://` won't work):
-
-```bash
-python -m http.server 8137
-# then open http://127.0.0.1:8137/
-```
-
-Any static file server works the same way.
-
 ## Tests
 
 Timer logic, date handling, week bounds, streaks, and stats are covered by a dependency-free node test suite:
