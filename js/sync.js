@@ -17,10 +17,14 @@ let unsubSnapshot = null;
 let status = syncConfigured ? 'signedOut' : 'off';
 let lastSyncAt = 0;             // last successful push/pull (Date.now())
 let lastSeenRemoteAt = 0;       // version the cloud currently holds (best known)
-let suppressNextPush = false;   // skip echo push right after applying remote
+let suppressPushUpTo = 0;       // ignore echoes of a remote copy we just applied
 let pushTimer = null;
 let pushing = false;
 let initialSyncDone = false;
+let pendingChoice = false;      // user is deciding which copy to keep
+let pendingRemote = null;       // latest cloud copy seen while that dialog is open
+let syncPaused = false;         // conflict left unresolved — never push over the cloud
+let lastSyncedFingerprint = ''; // portable data as last pushed or pulled
 let lastError = '';
 
 export function initSync() {
@@ -31,10 +35,22 @@ export function initSync() {
   if (syncConfigured && localStorage.getItem(SYNC_FLAG) === '1') restoreSession();
 }
 
+let fbPromise = null;
+let authWatched = false;
+
+function watchAuth() {
+  if (authWatched) return;
+  authWatched = true;
+  fb.onAuthStateChanged(fb.authInst, u => {
+    if (u) attach(u);
+    else if (status !== 'signingIn') detach();
+  });
+}
+
 async function restoreSession() {
   try {
     fb = await loadFirebase();
-    fb.onAuthStateChanged(fb.authInst, u => { u ? attach(u) : detach(); });
+    watchAuth();
   } catch {
     // CDN unreachable (offline) — stay local-only until next visit.
   }
@@ -61,7 +77,7 @@ export async function signIn() {
     fb = await loadFirebase();
     const provider = new fb.GoogleAuthProvider();
     localStorage.setItem(SYNC_FLAG, '1');
-    fb.onAuthStateChanged(fb.authInst, u => { u ? attach(u) : detach(); });
+    watchAuth();
     await fb.signInWithPopup(fb.authInst, provider);
   } catch (err) {
     const code = String(err && err.code || '');
@@ -73,6 +89,7 @@ export async function signIn() {
         return; // page navigates away to Google
       } catch (err2) {
         toast('Could not start sign-in: ' + friendly(err2), { timeoutMs: 6000 });
+        localStorage.removeItem(SYNC_FLAG);
         setStatus('signedOut');
         return;
       }
@@ -84,6 +101,7 @@ export async function signIn() {
     } else {
       toast('Sign-in failed: ' + friendly(err), { timeoutMs: 6000 });
     }
+    localStorage.removeItem(SYNC_FLAG);
     setStatus('signedOut');
   }
 }
@@ -106,7 +124,6 @@ function friendly(err) {
   return String((err && err.message) || err).replace(/^Firebase:\s*/i, '');
 }
 
-let fbPromise = null;
 function loadFirebase() {
   if (!fbPromise) {
     fbPromise = Promise.all([
@@ -142,14 +159,8 @@ function portableState(state) {
   };
 }
 
-function isFreshDevice(state) {
-  return !state.settings.setupDone && state.subjects.length === 0 &&
-    state.topics.length === 0 && state.sessions.length === 0;
-}
-
 function applyRemote(payload) {
   const clean = migrate(payload);
-  suppressNextPush = true;
   store.update(local => {
     local.subjects = clean.subjects;
     local.topics = clean.topics;
@@ -157,11 +168,20 @@ function applyRemote(payload) {
     local.sessions = clean.sessions;
     for (const k of PORTABLE_SETTINGS) local.settings[k] = clean.settings[k];
   });
+  suppressPushUpTo = store.state.updatedAt;
+  lastSyncedFingerprint = fingerprint(store.state);
+  lastSeenRemoteAt = Math.max(lastSeenRemoteAt, clean.updatedAt || 0);
 }
 
 function attach(u) {
   user = u;
+  localStorage.setItem(SYNC_FLAG, '1');
   lastError = '';
+  suppressPushUpTo = 0;
+  pendingChoice = false;
+  pendingRemote = null;
+  syncPaused = false;
+  lastSyncedFingerprint = '';
   setStatus('syncing');
   docRef = fb.doc(fb.db, 'users', u.uid);
   unsubSnapshot = fb.onSnapshot(docRef,
@@ -175,6 +195,11 @@ function detach() {
   docRef = null;
   initialSyncDone = false;
   lastSeenRemoteAt = 0;
+  suppressPushUpTo = 0;
+  pendingChoice = false;
+  pendingRemote = null;
+  syncPaused = false;
+  lastSyncedFingerprint = '';
   localStorage.removeItem(SYNC_FLAG);
   setStatus(syncConfigured ? 'signedOut' : 'off');
 }
@@ -182,10 +207,15 @@ function detach() {
 function onRemote(snap) {
   if (!user) return;
   if (!snap.exists()) {
-    // First sign-in from this account: cloud is empty, upload what we have.
-    lastSeenRemoteAt = 0;
-    pushNow(true);
+    // First sign-in for this account: nothing in the cloud yet.
     initialSyncDone = true;
+    lastSeenRemoteAt = 0;
+    lastSyncAt = Date.now();
+    if (hasData(store.state)) pushNow(true);
+    else {
+      lastSyncedFingerprint = fingerprint(store.state);
+      setStatus('synced');
+    }
     return;
   }
   const remote = snap.data();
@@ -196,49 +226,150 @@ function onRemote(snap) {
     initialSyncDone = true;
     lastSeenRemoteAt = remoteAt;
     lastSyncAt = Date.now();
-    if (isFreshDevice(store.state)) {
-      applyRemote(remote.payload); // new device: adopt the cloud copy wholesale
+    const localHas = hasData(store.state);
+    const cloudHas = hasData(remote.payload);
+    if (!localHas) {
+      // This device has nothing worth keeping — always adopt the cloud copy.
+      if (cloudHas) {
+        applyRemote(remote.payload);
+        toast('Loaded your saved data from the cloud.', { timeoutMs: 4000 });
+      } else {
+        lastSyncedFingerprint = fingerprint(store.state);
+      }
       setStatus('synced');
-    } else if (store.state.updatedAt > remoteAt) {
-      pushNow(true); // this device is ahead (e.g. used offline since cloud write)
-      setStatus('synced');
+    } else if (!cloudHas) {
+      // Cloud copy is empty — upload this device's data.
+      pushNow(true);
+    } else if (store.state.updatedAt === remoteAt || sameContent(store.state, remote.payload)) {
+      lastSyncedFingerprint = fingerprint(store.state);
+      setStatus('synced'); // same data, only timestamps differ
     } else {
-      setStatus('synced'); // identical or cloud is newer; snapshot flow will apply
+      askWhichToKeep(remote, remoteAt); // both have data — never overwrite silently
     }
     return;
   }
 
+  if (syncPaused) return;
+  if (pendingChoice) {
+    // Keep the dialog honest if another device writes while it is open.
+    if (remoteAt > lastSeenRemoteAt) {
+      lastSeenRemoteAt = remoteAt;
+      pendingRemote = { payload: remote.payload, at: remoteAt };
+    }
+    return;
+  }
   if (remoteAt > lastSeenRemoteAt) {
     lastSeenRemoteAt = remoteAt;
     lastSyncAt = Date.now();
-    if (remoteAt > store.state.updatedAt) {
+    if (fingerprint(store.state) === lastSyncedFingerprint) {
       applyRemote(remote.payload);
       toast('Synced from your other device.', { timeoutMs: 3000 });
+      setStatus('synced');
+    } else {
+      askWhichToKeep(remote, remoteAt);
     }
-    setStatus(navigator.onLine ? 'synced' : 'offline');
   }
 }
 
+function hasData(state) {
+  return (state.subjects?.length || 0) + (state.topics?.length || 0) + (state.sessions?.length || 0) > 0;
+}
+
+function fingerprint(state) {
+  return JSON.stringify({
+    settings: PORTABLE_SETTINGS.map(k => state.settings?.[k] ?? null),
+    subjects: state.subjects, topics: state.topics, plan: state.plan, sessions: state.sessions,
+  });
+}
+
+function sameContent(a, b) {
+  return fingerprint(a) === fingerprint(b);
+}
+
+function countLabel(state) {
+  const s = state.subjects?.length || 0;
+  const t = state.topics?.length || 0;
+  const x = state.sessions?.length || 0;
+  return `${s} subject${s === 1 ? '' : 's'}, ${t} topic${t === 1 ? '' : 's'}, ${x} session${x === 1 ? '' : 's'}`;
+}
+
+function timeLabel(ts) {
+  if (!ts) return 'never';
+  return new Date(ts).toLocaleString();
+}
+
+function askWhichToKeep(remote, remoteAt) {
+  const local = store.state;
+  pendingChoice = true;
+  pendingRemote = { payload: remote.payload, at: remoteAt };
+  const body = el('div');
+  body.appendChild(el('p', 'modal-sub', `Cloud copy: ${countLabel(remote.payload)} — last updated ${timeLabel(remoteAt)}.`));
+  body.appendChild(el('p', 'modal-sub', `This device: ${countLabel(local)} — last updated ${timeLabel(local.updatedAt)}.`));
+  body.appendChild(el('p', 'modal-sub', 'Both copies have data. Choose which one to keep — the other will be replaced. Export a backup first if you are unsure.'));
+  openModal({
+    title: 'Which data should this device use?',
+    body,
+    onClose: () => {
+      if (!pendingChoice) return;
+      pendingChoice = false;
+      pendingRemote = null;
+      syncPaused = true;
+      setStatus('conflict');
+      toast('Sync is paused. Sign out and sign in again to choose which copy to keep.', { timeoutMs: 8000 });
+    },
+    actions: [
+      { label: 'Use cloud copy (recommended)', kind: 'primary', onClick: () => {
+        const chosen = pendingRemote || { payload: remote.payload, at: remoteAt };
+        pendingChoice = false;
+        pendingRemote = null;
+        syncPaused = false;
+        applyRemote(chosen.payload);
+        lastSeenRemoteAt = chosen.at;
+        setStatus('synced');
+        toast('This device now uses your cloud data.', { timeoutMs: 4000 });
+      } },
+      { label: 'Upload this device’s data', onClick: () => {
+        pendingChoice = false;
+        pendingRemote = null;
+        syncPaused = false;
+        store.update(() => {}); // fresh updatedAt so the chosen copy wins elsewhere
+        pushNow(true);
+        setStatus('synced');
+        toast('This device’s data replaced the cloud copy.', { timeoutMs: 4000 });
+      } },
+    ],
+  });
+}
+
 function schedulePush() {
-  if (!user) return;
+  if (!user || pendingChoice || syncPaused) return;
   clearTimeout(pushTimer);
   pushTimer = setTimeout(() => pushNow(), 1200);
 }
 
 async function pushNow(force) {
-  if (!user || !docRef || pushing) return;
-  if (suppressNextPush) { suppressNextPush = false; return; }
+  if (!user || !docRef || pushing || pendingChoice || syncPaused) return;
+  if (!force && !initialSyncDone) return;
   const state = store.state;
-  if (!force && state.updatedAt <= lastSeenRemoteAt) return;
+  if (suppressPushUpTo && state.updatedAt <= suppressPushUpTo) {
+    suppressPushUpTo = 0;
+    return;
+  }
+  const sent = fingerprint(state);
+  if (!force && (sent === lastSyncedFingerprint || state.updatedAt <= lastSeenRemoteAt)) return;
+  const sentAt = state.updatedAt;
   pushing = true;
   try {
-    await fb.setDoc(docRef, { updatedAt: state.updatedAt, payload: portableState(state) });
-    lastSeenRemoteAt = state.updatedAt;
+    await fb.setDoc(docRef, { updatedAt: sentAt, payload: portableState(state) });
+    lastSeenRemoteAt = sentAt;
+    lastSyncedFingerprint = sent;
     lastSyncAt = Date.now();
     lastError = '';
     setStatus(navigator.onLine ? 'synced' : 'offline');
   } catch (err) {
-    lastError = friendly(err);
+    const message = friendly(err);
+    if (message !== lastError) toast('Cloud sync problem: ' + message, { timeoutMs: 7000 });
+    lastError = message;
     setStatus(navigator.onLine ? 'error' : 'offline');
   } finally {
     pushing = false;

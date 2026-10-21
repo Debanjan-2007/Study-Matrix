@@ -91,7 +91,7 @@ export function renderSettings() {
   const info = getSyncInfo();
   if (info.user) {
     const when = info.lastSyncAt ? lastSyncLabel(info.lastSyncAt) : 'just now';
-    const stateLabel = { syncing: 'Syncing…', synced: 'Up to date', offline: 'Offline — will sync when reconnected', error: 'Sync problem', signingIn: 'Syncing…' }[info.status] || 'Up to date';
+    const stateLabel = { syncing: 'Syncing…', synced: 'Up to date', offline: 'Offline — will sync when reconnected', error: 'Sync problem', signingIn: 'Syncing…', conflict: 'Sync paused — sign out below, then sign in again to choose which copy to keep' }[info.status] || 'Up to date';
     syncCard.appendChild(Object.assign(el('p', 'set-sub'), {
       textContent: `Signed in as ${info.user.email}. Your subjects, plans and sessions sync automatically to this account and appear on any device where you sign in. ${stateLabel} (last synced ${when}). Theme, sound and notification preferences stay on each device.`,
     }));
@@ -107,7 +107,7 @@ export function renderSettings() {
     syncCard.appendChild(Object.assign(el('p', 'set-sub'), {
       textContent: info.configured
         ? 'Sign in with Google to keep the same subjects, plans and sessions on your laptop and phone. Only your study data syncs — theme, sound and notification preferences stay on this device.'
-        : 'Sign in with Google to keep the same subjects, plans and sessions on your laptop and phone. Sync needs a one-time free setup — see "Sync setup" in the README, then paste your config into js/firebase-config.js.',
+        : 'Sign in with Google to keep the same subjects, plans and sessions on your laptop and phone. Sync needs a one-time free setup — a Firebase web config in js/firebase-config.js.',
     }));
     const rowG = el('div', 'set-row');
     const gInfo = el('div');
