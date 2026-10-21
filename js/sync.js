@@ -276,10 +276,18 @@ function hasData(state) {
 }
 
 function fingerprint(state) {
-  return JSON.stringify({
+  return JSON.stringify(canonical({
     settings: PORTABLE_SETTINGS.map(k => state.settings?.[k] ?? null),
     subjects: state.subjects, topics: state.topics, plan: state.plan, sessions: state.sessions,
-  });
+  }));
+}
+
+function canonical(value) {
+  if (Array.isArray(value)) return value.map(canonical);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.keys(value).sort().map(k => [k, canonical(value[k])]));
+  }
+  return value;
 }
 
 function sameContent(a, b) {
@@ -289,8 +297,50 @@ function sameContent(a, b) {
 function countLabel(state) {
   const s = state.subjects?.length || 0;
   const t = state.topics?.length || 0;
+  const b = state.plan?.length || 0;
   const x = state.sessions?.length || 0;
-  return `${s} subject${s === 1 ? '' : 's'}, ${t} topic${t === 1 ? '' : 's'}, ${x} session${x === 1 ? '' : 's'}`;
+  return `${s} subject${s === 1 ? '' : 's'}, ${t} topic${t === 1 ? '' : 's'}, ` +
+    `${b} planned block${b === 1 ? '' : 's'}, ${x} session${x === 1 ? '' : 's'}`;
+}
+
+function mergeCopies(local, incoming) {
+  const remoteNewer = (incoming.updatedAt || 0) > (local.updatedAt || 0);
+  const newer = remoteNewer ? incoming : local;
+  const older = remoteNewer ? local : incoming;
+  const mergeById = (a, b) => {
+    const map = new Map();
+    for (const item of b || []) map.set(item.id, item);
+    for (const item of a || []) map.set(item.id, item);
+    return [...map.values()];
+  };
+  const plan = new Map();
+  for (const p of older.plan || []) plan.set(p.topicId + '|' + p.date, p.blocks);
+  for (const p of newer.plan || []) plan.set(p.topicId + '|' + p.date, p.blocks);
+  return {
+    subjects: mergeById(newer.subjects, older.subjects),
+    topics: mergeById(newer.topics, older.topics),
+    sessions: mergeById(newer.sessions, older.sessions),
+    plan: [...plan.entries()].map(([key, blocks]) => {
+      const i = key.indexOf('|');
+      return { topicId: key.slice(0, i), date: key.slice(i + 1), blocks };
+    }),
+    settings: newer.settings,
+  };
+}
+
+function applyMerged(remotePayload, remoteAt) {
+  const merged = mergeCopies(store.state, migrate(remotePayload));
+  store.update(local => {
+    local.subjects = merged.subjects;
+    local.topics = merged.topics;
+    local.plan = merged.plan;
+    local.sessions = merged.sessions;
+    for (const k of PORTABLE_SETTINGS) local.settings[k] = merged.settings[k];
+  });
+  suppressPushUpTo = 0;
+  lastSyncedFingerprint = '';
+  lastSeenRemoteAt = Math.max(lastSeenRemoteAt, remoteAt || 0);
+  pushNow(true);
 }
 
 function timeLabel(ts) {
@@ -305,7 +355,7 @@ function askWhichToKeep(remote, remoteAt) {
   const body = el('div');
   body.appendChild(el('p', 'modal-sub', `Cloud copy: ${countLabel(remote.payload)} — last updated ${timeLabel(remoteAt)}.`));
   body.appendChild(el('p', 'modal-sub', `This device: ${countLabel(local)} — last updated ${timeLabel(local.updatedAt)}.`));
-  body.appendChild(el('p', 'modal-sub', 'Both copies have data. Choose which one to keep — the other will be replaced. Export a backup first if you are unsure.'));
+  body.appendChild(el('p', 'modal-sub', 'The totals can match while details differ (planned blocks, daily goal, name). This dialog appears on every visit until the two copies are resolved. Keep both to combine them safely, or pick one to replace the other.'));
   openModal({
     title: 'Which data should this device use?',
     body,
@@ -318,7 +368,16 @@ function askWhichToKeep(remote, remoteAt) {
       toast('Sync is paused. Sign out and sign in again to choose which copy to keep.', { timeoutMs: 8000 });
     },
     actions: [
-      { label: 'Use cloud copy (recommended)', kind: 'primary', onClick: () => {
+      { label: 'Keep both (recommended)', kind: 'primary', onClick: () => {
+        const chosen = pendingRemote || { payload: remote.payload, at: remoteAt };
+        pendingChoice = false;
+        pendingRemote = null;
+        syncPaused = false;
+        applyMerged(chosen.payload, chosen.at);
+        setStatus('synced');
+        toast('Combined both copies — nothing was deleted.', { timeoutMs: 5000 });
+      } },
+      { label: 'Use cloud copy', onClick: () => {
         const chosen = pendingRemote || { payload: remote.payload, at: remoteAt };
         pendingChoice = false;
         pendingRemote = null;
