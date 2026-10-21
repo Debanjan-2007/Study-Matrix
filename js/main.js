@@ -8,6 +8,7 @@ import { initFocus, renderTopicSelect } from './ui/focus.js';
 import { renderProgress } from './ui/progress.js';
 import { initSettings, renderSettings, maybeShowSetup } from './ui/settings.js';
 import { prime } from './sounds.js';
+import { initSync, getSyncInfo, signIn } from './sync.js';
 import { el } from './ui/common.js';
 
 const BASE_TITLE = 'Study Matrix — Plan · Focus · Achieve';
@@ -40,6 +41,26 @@ function updateStreakChip() {
   document.getElementById('nav-streak-num').textContent = String(st.current);
 }
 
+function paintSyncChip() {
+  const chip = document.getElementById('sync-chip');
+  const text = document.getElementById('sync-chip-text');
+  const avatar = document.getElementById('sync-avatar');
+  const info = getSyncInfo();
+  avatar.hidden = true;
+  chip.classList.toggle('is-on', !!info.user);
+  if (!info.configured) {
+    text.textContent = 'Sync';
+    chip.title = 'Cloud sync is not set up yet (needs a free Firebase project)';
+  } else if (!info.user) {
+    text.textContent = info.status === 'signingIn' ? 'Signing in…' : 'Sync';
+    chip.title = 'Sign in with Google to sync between devices';
+  } else {
+    text.textContent = info.user.name || 'Synced';
+    if (info.user.photo) { avatar.src = info.user.photo; avatar.hidden = false; }
+    chip.title = 'Signed in as ' + (info.user.email || '') + ' — click for sync settings';
+  }
+}
+
 function paintStorageError() {
   let banner = document.getElementById('storage-banner');
   if (!store.state.storageError) {
@@ -61,6 +82,7 @@ function boot() {
   initPlanner();
   initSettings();
   initFocus();
+  initSync();
   maybeShowSetup();
 
   // Nav
@@ -96,6 +118,18 @@ function boot() {
   });
   updateStreakChip();
   paintStorageError();
+  paintSyncChip();
+
+  // Sync chip: sign in when signed out, open settings when signed in
+  document.getElementById('sync-chip').addEventListener('click', () => {
+    const info = getSyncInfo();
+    if (info.user) show('settings');
+    else signIn();
+  });
+  document.addEventListener('app:sync', () => {
+    paintSyncChip();
+    if (currentView === 'settings') renderSettings();
+  });
 
   // Timer ticks drive the nav chip + tab title
   const chip = document.getElementById('timer-chip');

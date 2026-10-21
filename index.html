@@ -58,6 +58,11 @@
         <svg viewBox="0 0 24 24" class="ic flame" aria-hidden="true"><path d="M12 22c4.4 0 7-2.8 7-6.5 0-2.4-1.2-4.2-2.4-5.7-.5 1-1.1 1.7-2 2.2.3-2.6-.9-6.1-4.1-8 .2 2.3-.6 3.9-1.9 5.4C7.3 10.9 5 13 5 16 5 19.9 7.6 22 12 22Z" fill="currentColor"/><path d="M12 22c-2 0-3.4-1.3-3.4-3.2 0-1.4.8-2.4 1.7-3.3.5.7 1 1.1 1.7 1.4.2-1.4-.3-2.9-1.5-4.1 2.5.6 4.9 2.9 4.9 6 0 1.9-1.4 3.2-3.4 3.2Z" fill="rgba(0,0,0,.28)"/></svg>
         <span id="nav-streak-num">0</span>
       </div>
+      <button class="sync-chip" id="sync-chip" aria-label="Sign in to sync your data">
+        <svg viewBox="0 0 24 24" class="ic" aria-hidden="true"><path d="M7 18.5h9.8a4 4 0 0 0 .6-7.95A5.5 5.5 0 0 0 6.3 8.9 4.6 4.6 0 0 0 7 18.5Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+        <img class="sync-avatar" id="sync-avatar" alt="" hidden>
+        <span id="sync-chip-text">Sync</span>
+      </button>
       <button class="icon-btn" id="theme-toggle" aria-label="Toggle theme">
         <svg viewBox="0 0 24 24" class="ic ic-moon"><path d="M20.4 14.2A8.5 8.5 0 0 1 9.8 3.6 8.5 8.5 0 1 0 20.4 14.2Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
         <svg viewBox="0 0 24 24" class="ic ic-sun"><circle cx="12" cy="12" r="4.4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2.5v2.4M12 19.1v2.4M2.5 12h2.4M19.1 12h2.4M5 5l1.7 1.7M17.3 17.3 19 19M19 5l-1.7 1.7M6.7 17.3 5 19" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
@@ -174,7 +179,7 @@
       <div class="view-head">
         <div>
           <h1 class="view-title" id="settings-title">Settings</h1>
-          <p class="view-sub">Everything is stored locally in this browser only.</p>
+          <p class="view-sub">Stored in this browser — sign in below to sync with your other devices.</p>
         </div>
       </div>
       <div id="settings-root"></div>

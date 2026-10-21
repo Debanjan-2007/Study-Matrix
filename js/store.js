@@ -42,6 +42,7 @@ export function defaultSettings() {
 export function blankState() {
   return {
     version: SCHEMA_VERSION,
+    updatedAt: 0,
     settings: defaultSettings(),
     subjects: [],
     topics: [],
@@ -55,6 +56,7 @@ export function migrate(raw) {
   const state = blankState();
   if (!raw || typeof raw !== 'object') return state;
   state.version = SCHEMA_VERSION;
+  if (typeof raw.updatedAt === 'number') state.updatedAt = raw.updatedAt;
   state.settings = { ...defaultSettings(), ...(raw.settings || {}) };
   state.subjects = Array.isArray(raw.subjects) ? raw.subjects : [];
   state.topics = Array.isArray(raw.topics) ? raw.topics : [];
@@ -95,6 +97,7 @@ function createStore() {
 
   function save() {
     try {
+      state.updatedAt = Date.now();
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
       delete state.storageError;
       return true;

@@ -43,10 +43,36 @@ Study Matrix follows this cycle automatically: focus → short rest → focus �
 ### Your data
 - Everything is stored **locally in your browser** (localStorage). Closing the tab or restarting your computer never deletes it — data is only removed if you erase it from Settings or clear the site's browser data.
 - **Export / Import** a JSON backup to move your data between browsers or devices.
+- **Sync across devices (optional):** sign in with Google and your subjects, plans and sessions sync automatically between your laptop and phone (see "Sync setup" below). Only your study data syncs — theme, sound and notification preferences stay on each device.
 
 ### Design
 - Dark glassmorphism UI with light mode and system theme detection.
 - Fully responsive — works on desktop and mobile phones.
+
+## Sync setup (one-time, ~10 minutes)
+
+The sync feature uses Google's free [Firebase](https://firebase.google.com) (authentication + database). The app works fully without it — this is only needed if you want phone ↔ laptop sync.
+
+1. Go to [console.firebase.google.com](https://console.firebase.google.com) and sign in with the Google account you'll use in the app.
+2. Click **Add project** → give it a name (e.g. `study-matrix`) → continue (you can disable Analytics).
+3. In the project, open **Build → Authentication → Sign-in method**, enable **Google**, and pick a support email.
+4. Open **Build → Firestore Database → Create database** → choose **Production mode** and a location near you.
+5. In **Firestore → Rules**, publish these rules (each user can only read/write their own data), then **Publish**:
+   ```
+   rules_version = '2';
+   service cloud.firestore {
+     match /databases/{database}/documents {
+       match /users/{uid} {
+         allow read, write: if request.auth != null && request.auth.uid == uid;
+       }
+     }
+   }
+   ```
+6. Go to **Project settings → Your apps → Web app** (`</>` icon), register the app (nickname e.g. `study-matrix-web`), and copy the config values it shows.
+7. Paste the four values into `js/firebase-config.js` (`apiKey`, `authDomain`, `projectId`, `appId`).
+8. **If you host on GitHub Pages:** in **Authentication → Settings → Authorized domains**, add your Pages domain (e.g. `debanjan-2007.github.io`).
+
+The Firebase keys in `js/firebase-config.js` identify your project but are **not secrets** — access to data is protected by the Firestore rules above.
 
 ## Run it locally
 
@@ -69,6 +95,7 @@ node tests/run-tests.mjs
 
 ## Tech
 
-- Vanilla HTML / CSS / JavaScript (ES modules) — zero dependencies
+- Vanilla HTML / CSS / JavaScript (ES modules) — zero runtime dependencies
 - localStorage for persistence, JSON for backups
 - WebAudio for chimes, Notification API for alerts
+- Optional sync: Firebase Auth (Google sign-in) + Firestore, loaded from Google's CDN only when you sign in — the app makes no network calls otherwise

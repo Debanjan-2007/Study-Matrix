@@ -2,6 +2,7 @@
 
 import { store, exportJSON, parseImport, blankState, demoState } from '../store.js';
 import { fmtHM } from '../stats.js';
+import { getSyncInfo, signIn, signOut } from '../sync.js';
 import { openModal, toast, field, el } from './common.js';
 
 export function initSettings() {
@@ -61,8 +62,11 @@ export function renderSettings() {
   const dataCard = el('div', 'card set-card');
   dataCard.appendChild(el('h2', null, 'Your data'));
   const mins = store.state.sessions.reduce((a, x) => a + x.actualSec, 0) / 60;
+  const sync0 = getSyncInfo();
   dataCard.appendChild(Object.assign(el('p', 'set-sub'), {
-    textContent: `${store.state.sessions.length} session${store.state.sessions.length === 1 ? '' : 's'} · ${fmtHM(mins)} focused · stored only in this browser's localStorage.`,
+    textContent: sync0.user
+      ? `${store.state.sessions.length} session${store.state.sessions.length === 1 ? '' : 's'} · ${fmtHM(mins)} focused · saved permanently in this browser AND synced to your private cloud space. The same data appears on any device where you sign in. Nothing is deleted when you close the tab.`
+      : `${store.state.sessions.length} session${store.state.sessions.length === 1 ? '' : 's'} · ${fmtHM(mins)} focused · saved permanently in this browser on this device. Closing the tab never deletes it — it is only removed if you press "Erase everything" below or clear this site's browser data. Want it on your phone too? Sign in below to sync.`,
   }));
   const row1 = el('div', 'set-row');
   const exportInfo = el('div');
@@ -80,6 +84,42 @@ export function renderSettings() {
   row2.append(importInfo, importBtn);
   dataCard.append(row1, row2);
   grid.appendChild(dataCard);
+
+  // ---- Sync across devices ----
+  const syncCard = el('div', 'card set-card');
+  syncCard.appendChild(el('h2', null, 'Sync across devices'));
+  const info = getSyncInfo();
+  if (info.user) {
+    const when = info.lastSyncAt ? lastSyncLabel(info.lastSyncAt) : 'just now';
+    const stateLabel = { syncing: 'Syncing…', synced: 'Up to date', offline: 'Offline — will sync when reconnected', error: 'Sync problem', signingIn: 'Syncing…' }[info.status] || 'Up to date';
+    syncCard.appendChild(Object.assign(el('p', 'set-sub'), {
+      textContent: `Signed in as ${info.user.email}. Your subjects, plans and sessions sync automatically to this account and appear on any device where you sign in. ${stateLabel} (last synced ${when}). Theme, sound and notification preferences stay on each device.`,
+    }));
+    const rowS = el('div', 'set-row');
+    const soInfo = el('div');
+    soInfo.appendChild(el('div', 'set-name', 'Sign out'));
+    soInfo.appendChild(el('div', 'set-desc', 'Data already synced stays in your account; this browser keeps its local copy.'));
+    const soBtn = el('button', 'btn btn-ghost', 'Sign out');
+    soBtn.addEventListener('click', () => { signOut(); toast('Signed out. This browser keeps its local copy.', { timeoutMs: 4000 }); });
+    rowS.append(soInfo, soBtn);
+    syncCard.appendChild(rowS);
+  } else {
+    syncCard.appendChild(Object.assign(el('p', 'set-sub'), {
+      textContent: info.configured
+        ? 'Sign in with Google to keep the same subjects, plans and sessions on your laptop and phone. Only your study data syncs — theme, sound and notification preferences stay on this device.'
+        : 'Sign in with Google to keep the same subjects, plans and sessions on your laptop and phone. Sync needs a one-time free setup — see "Sync setup" in the README, then paste your config into js/firebase-config.js.',
+    }));
+    const rowG = el('div', 'set-row');
+    const gInfo = el('div');
+    gInfo.appendChild(el('div', 'set-name', 'Google account'));
+    gInfo.appendChild(el('div', 'set-desc', 'One tap sign-in. No password is shared with this app.'));
+    const gBtn = el('button', 'btn btn-google');
+    gBtn.innerHTML = '<svg viewBox="0 0 24 24" class="ic" aria-hidden="true"><path fill="#4285F4" d="M23.5 12.27c0-.85-.08-1.66-.22-2.45H12v4.64h6.45a5.52 5.52 0 0 1-2.39 3.62v3h3.87c2.26-2.09 3.57-5.16 3.57-8.81Z"/><path fill="#34A853" d="M12 24c3.24 0 5.96-1.07 7.93-2.91l-3.87-3c-1.07.72-2.44 1.15-4.06 1.15-3.12 0-5.77-2.11-6.71-4.95H1.29v3.1A12 12 0 0 0 12 24Z"/><path fill="#FBBC05" d="M5.29 14.29A7.2 7.2 0 0 1 4.93 12c0-.8.14-1.57.36-2.29v-3.1H1.29a12 12 0 0 0 0 10.78l4-3.1Z"/><path fill="#EA4335" d="M12 4.78c1.76 0 3.34.6 4.58 1.8l3.44-3.44A11.98 11.98 0 0 0 12 0 12 12 0 0 0 1.29 6.61l4 3.1c.94-2.84 3.6-4.93 6.71-4.93Z"/></svg><span>Sign in with Google</span>';
+    gBtn.addEventListener('click', signIn);
+    rowG.append(gInfo, gBtn);
+    syncCard.appendChild(rowG);
+  }
+  grid.appendChild(syncCard);
 
   // ---- Danger zone ----
   const danger = el('div', 'card set-card danger-zone');
@@ -145,6 +185,17 @@ function wrap(a, b) {
   const d = el('div');
   d.append(a, b);
   return d;
+}
+
+function lastSyncLabel(ts) {
+  const s = Math.max(0, Math.round((Date.now() - ts) / 1000));
+  if (s < 10) return 'just now';
+  if (s < 60) return s + 's ago';
+  const m = Math.round(s / 60);
+  if (m < 60) return m + ' min ago';
+  const h = Math.round(m / 60);
+  if (h < 24) return h + 'h ago';
+  return Math.round(h / 24) + 'd ago';
 }
 
 function themeRow() {
@@ -265,7 +316,7 @@ export function maybeShowSetup() {
   body.appendChild(row);
 
   const note = el('div', 'privacy-note');
-  note.innerHTML = `<svg viewBox="0 0 24 24" class="ic"><path d="M12 3 5 6v5c0 4.5 3 8.2 7 10 4-1.8 7-5.5 7-10V6l-7-3Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9.5 12l2 2 3.5-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span><strong>Private by design.</strong> Everything stays in this browser's localStorage — no account, no cloud, no tracking, no network calls after this page loads.</span>`;
+  note.innerHTML = `<svg viewBox="0 0 24 24" class="ic"><path d="M12 3 5 6v5c0 4.5 3 8.2 7 10 4-1.8 7-5.5 7-10V6l-7-3Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9.5 12l2 2 3.5-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span><strong>Private by design.</strong> Your data lives permanently in this browser and is never deleted on its own — nothing leaves your device unless you turn on Google sync in Settings to use it on your phone too.</span>`;
   body.appendChild(note);
 
   openModal({
