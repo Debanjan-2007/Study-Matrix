@@ -7,6 +7,7 @@ import { firebaseConfig, syncConfigured } from './firebase-config.js';
 import { openModal, toast, el } from './ui/common.js';
 
 const CDN = 'https://www.gstatic.com/firebasejs/10.12.2';
+const SYNC_FLAG = 'study-matrix:sync-on';
 const PORTABLE_SETTINGS = ['focusMin', 'shortRestMin', 'longRestMin', 'cyclesBeforeLong', 'dailyGoalMin', 'name', 'setupDone'];
 
 let fb = null;                  // loaded firebase modules + instances
@@ -26,6 +27,17 @@ export function initSync() {
   store.subscribe(() => schedulePush());
   window.addEventListener('online', () => { if (user) { setStatus('syncing'); pushNow(); } });
   window.addEventListener('offline', () => { if (user) setStatus('offline'); });
+  // Returning after redirect sign-in, or revisiting signed in: restore the session.
+  if (syncConfigured && localStorage.getItem(SYNC_FLAG) === '1') restoreSession();
+}
+
+async function restoreSession() {
+  try {
+    fb = await loadFirebase();
+    fb.onAuthStateChanged(fb.authInst, u => { u ? attach(u) : detach(); });
+  } catch {
+    // CDN unreachable (offline) — stay local-only until next visit.
+  }
 }
 
 export function getSyncInfo() {
@@ -47,14 +59,28 @@ export async function signIn() {
   setStatus('signingIn');
   try {
     fb = await loadFirebase();
-    fb.onAuthStateChanged(fb.authInst, u => { u ? attach(u) : detach(); });
     const provider = new fb.GoogleAuthProvider();
+    localStorage.setItem(SYNC_FLAG, '1');
+    fb.onAuthStateChanged(fb.authInst, u => { u ? attach(u) : detach(); });
     await fb.signInWithPopup(fb.authInst, provider);
   } catch (err) {
-    if (String(err && err.code).includes('popup-closed')) {
+    const code = String(err && err.code || '');
+    if (code.includes('popup-blocked')) {
+      // Brave/strict blockers kill popups — use same-tab redirect instead.
+      toast('Popup blocked — opening Google sign-in in this tab instead…', { timeoutMs: 5000 });
+      try {
+        await fb.signInWithRedirect(fb.authInst, provider);
+        return; // page navigates away to Google
+      } catch (err2) {
+        toast('Could not start sign-in: ' + friendly(err2), { timeoutMs: 6000 });
+        setStatus('signedOut');
+        return;
+      }
+    }
+    if (code.includes('popup-closed')) {
       toast('Sign-in window was closed before finishing.', { timeoutMs: 4000 });
-    } else if (String(err && err.code).includes('popup-blocked') || String(err && err.code).includes('unauthorized-domain')) {
-      toast('The browser blocked the sign-in popup — allow popups for this site.', { timeoutMs: 6000 });
+    } else if (code.includes('unauthorized-domain')) {
+      toast('This web address is not authorized for sign-in — add it in Firebase → Authentication → Settings → Authorized domains.', { timeoutMs: 8000 });
     } else {
       toast('Sign-in failed: ' + friendly(err), { timeoutMs: 6000 });
     }
@@ -93,7 +119,8 @@ function loadFirebase() {
         doc: firestore.doc, getDoc: firestore.getDoc, setDoc: firestore.setDoc,
         onSnapshot: firestore.onSnapshot,
         GoogleAuthProvider: auth.GoogleAuthProvider,
-        signInWithPopup: auth.signInWithPopup, signOut: auth.signOut,
+        signInWithPopup: auth.signInWithPopup, signInWithRedirect: auth.signInWithRedirect,
+        signOut: auth.signOut,
         onAuthStateChanged: auth.onAuthStateChanged,
         authInst: auth.getAuth(application),
         db: firestore.getFirestore(application),
@@ -148,6 +175,7 @@ function detach() {
   docRef = null;
   initialSyncDone = false;
   lastSeenRemoteAt = 0;
+  localStorage.removeItem(SYNC_FLAG);
   setStatus(syncConfigured ? 'signedOut' : 'off');
 }
 
